@@ -2,11 +2,29 @@
   <v-app>
     <v-main>
       <v-container class="fill-height">
-        <v-container class="pa-8">
+        <v-container class="py-8">
           <v-row justify="center">
-            <h1 class="primary--text text-center">🧐 Token Swap Watcher (BSC)</h1>
+            <h1 class="primary--text text-center">
+              🧐 Token Swap Watcher (BSC)
+            </h1>
           </v-row>
-          <v-row class="mt-8">
+          <v-row
+            v-if="history.length > 0"
+            class="mt-8 mx-4"
+            justify="center"
+            align="center"
+          >
+            <span class="primary--text mr-2">Suggested:</span>
+            <v-chip
+              v-for="(item, index) in history"
+              :key="index"
+              class="ml-2 my-2 clickable"
+              @click="selectFromHistory(item)"
+            >
+              {{ item.symbol }}
+            </v-chip>
+          </v-row>
+          <v-row class="mt-4">
             <v-col cols="12">
               <v-text-field
                 v-model="tokenAddress"
@@ -27,7 +45,7 @@
             </v-col>
           </v-row>
           <v-row>
-            <v-col cols="6">
+            <v-col cols="12" sm="6">
               <v-text-field
                 v-model="blockStart"
                 label="⏳ Block Number Start"
@@ -36,7 +54,7 @@
                 hide-details
               />
             </v-col>
-            <v-col cols="6">
+            <v-col cols="12" sm="6">
               <v-text-field
                 v-model="blockEnd"
                 label="⌛️ Block Number End"
@@ -48,7 +66,10 @@
           </v-row>
 
           <v-row justify="center" class="mt-4">
-            <v-btn text color="accent" @click="openNewTab('https://bscscan.com/blocks')"
+            <v-btn
+              text
+              color="accent"
+              @click="openNewTab('https://bscscan.com/blocks')"
               >Looking for block number?</v-btn
             >
           </v-row>
@@ -138,11 +159,20 @@ export default {
     ],
     result: null,
     tokenSymbol: null,
+    history: [],
   }),
+
+  created() {
+    this.fetchHistory();
+  },
 
   methods: {
     openNewTab(url) {
       window.open(url, "_blank");
+    },
+    selectFromHistory(item) {
+      this.tokenAddress = item.tokenAddress;
+      this.lpAddress = item.lpAddress;
     },
     async watch() {
       this.isLoading = true;
@@ -161,10 +191,14 @@ export default {
       this.isLoading = false;
     },
     renderResult(raw) {
-      this.tokenSymbol = raw.length > 0 ? raw[0].tokenSymbol : null;
-      const onlyLPTrading = raw.filter(
+      let sortedResult = raw.sort((a, b) => b.timeStamp - a.timeStamp);
+
+      this.tokenSymbol =
+        sortedResult.length > 0 ? sortedResult[0].tokenSymbol : null;
+      const onlyLPTrading = sortedResult.filter(
         (tx) => tx.from === this.lpAddress || tx.to === this.lpAddress
       );
+
       this.result = onlyLPTrading.map((tx) => {
         let address = tx.from === this.lpAddress ? tx.to : tx.from;
         if (address === this.tokenAddress) {
@@ -180,6 +214,8 @@ export default {
         };
       });
       this.scrollToResult();
+
+      this.saveHistory(this.tokenSymbol, this.tokenAddress, this.lpAddress);
     },
     scrollToResult() {
       setTimeout(() => {
@@ -195,6 +231,32 @@ export default {
         this.error = null;
       }, 3000);
     },
+    fetchHistory() {
+      const json = window.localStorage.getItem("history");
+      this.history = JSON.parse(json) || [];
+    },
+    saveHistory(symbol, tokenAddress, lpAddress) {
+      const duplicateInHistory = this.history.find(
+        (item) =>
+          item.symbol === symbol &&
+          item.tokenAddress === tokenAddress &&
+          item.lpAddress === lpAddress
+      );
+
+      if (!duplicateInHistory) {
+        let save = [
+          ...(this.history || []),
+          {
+            symbol,
+            tokenAddress,
+            lpAddress,
+            timeStamp: new Date().getTime(),
+          },
+        ];
+        save = save.sort((a, b) => b.timeStamp - a.timeStamp).slice(0, 8);
+        window.localStorage.setItem("history", JSON.stringify(save));
+      }
+    },
   },
 };
 </script>
@@ -203,5 +265,8 @@ export default {
   position: fixed;
   margin: 1rem;
   right: 0;
+}
+.clickable {
+  cursor: pointer;
 }
 </style>
