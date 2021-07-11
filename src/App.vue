@@ -95,31 +95,63 @@
           <v-row class="my-4" justify="center">
             <span class="info--text">created by oakraw</span>
           </v-row>
-          <v-row
-            class="mt-12"
-            justify="space-between"
-            align="center"
-            v-if="result"
-          >
-            <h2>{{ tokenSymbol }}'s swap history</h2>
-            <vue-json-to-csv
-              :json-data="result"
-              :csv-title="`${tokenSymbol}-swap-history`"
+          <div v-if="filteredResult">
+            <v-row class="mt-12" justify="space-between" align="center">
+              <h2>{{ tokenSymbol }}'s swap history</h2>
+              <vue-json-to-csv
+                :json-data="filteredResult"
+                :csv-title="`${tokenSymbol}-swap-history`"
+              >
+                <v-btn color="secondary">
+                  Export
+                  <i class="mdi mdi-export-variant" aria-hidden="true"></i>
+                </v-btn>
+              </vue-json-to-csv>
+            </v-row>
+            <v-row align="center">
+              <span class="primary--text mr-2">Filter:</span>
+              <v-chip class="ml-2 my-2 clickable" @click="setFilter(null)">
+                All
+              </v-chip>
+              <v-chip class="ml-2 my-2 clickable" @click="setFilter('buy')">
+                Buy
+              </v-chip>
+              <v-chip class="ml-2 my-2 clickable" @click="setFilter('sell')">
+                Sell
+              </v-chip>
+            </v-row>
+            <v-combobox
+              v-model="excludedAddress"
+              :items="[tokenAddress]"
+              chips
+              class="mt-4"
+              clearable
+              label="Exclude Address"
+              multiple
+              prepend-icon="mdi-filter-variant"
+              outlined
             >
-              <v-btn color="secondary">
-                Export <i class="mdi mdi-export-variant" aria-hidden="true"></i>
-              </v-btn>
-            </vue-json-to-csv>
-          </v-row>
-          <v-row class="mt-4" v-if="result">
-            <v-data-table
-              style="width: 100%"
-              :headers="headers"
-              :items="result"
-              :items-per-page="10"
-              class="elevation-1 mt-2"
-            ></v-data-table>
-          </v-row>
+              <template v-slot:selection="{ attrs, item, selected }">
+                <v-chip
+                  v-bind="attrs"
+                  :input-value="selected"
+                  close
+                  @click:close="removeExcludedAddress(item)"
+                >
+                  <span>{{ item }}</span>
+                </v-chip>
+              </template>
+            </v-combobox>
+            <v-row>
+              <v-data-table
+                style="width: 100%"
+                :headers="headers"
+                :items="filteredResult"
+                :items-per-page="10"
+                class="elevation-1 mt-2"
+              ></v-data-table>
+            </v-row>
+          </div>
         </v-container>
       </v-container>
     </v-main>
@@ -138,6 +170,28 @@ export default {
 
   components: {
     VueJsonToCsv,
+  },
+
+  computed: {
+    filteredResult() {
+      let result = this.result;
+      if (this.filter) {
+        result = (this.result || []).filter(
+          (item) =>
+            (item.status || "").toLowerCase() === this.filter.toLowerCase()
+        );
+      }
+      if (this.excludedAddress && this.excludedAddress.length > 0) {
+        result = result.filter((item) => {
+          const matchedExcludeItem = this.excludedAddress.filter((exclude) =>
+            (item.address || "").includes(exclude)
+          );
+          return matchedExcludeItem.length === 0;
+        });
+      }
+
+      return result;
+    },
   },
 
   data: () => ({
@@ -160,6 +214,8 @@ export default {
     result: null,
     tokenSymbol: null,
     history: [],
+    filter: null,
+    excludedAddress: [],
   }),
 
   created() {
@@ -173,6 +229,10 @@ export default {
     selectFromHistory(item) {
       this.tokenAddress = item.tokenAddress;
       this.lpAddress = item.lpAddress;
+    },
+    removeExcludedAddress(item) {
+      const index = this.excludedAddress.indexOf(item);
+      this.excludedAddress.splice(index, 1);
     },
     async watch() {
       this.isLoading = true;
@@ -202,7 +262,7 @@ export default {
       this.result = onlyLPTrading.map((tx) => {
         let address = tx.from === this.lpAddress ? tx.to : tx.from;
         if (address === this.tokenAddress) {
-          address = tx.tokenName;
+          address = `(🪙${tx.tokenName}) ${address}`;
         }
         return {
           address,
@@ -230,6 +290,9 @@ export default {
       setTimeout(() => {
         this.error = null;
       }, 3000);
+    },
+    setFilter(filter) {
+      this.filter = filter;
     },
     fetchHistory() {
       const json = window.localStorage.getItem("history");
