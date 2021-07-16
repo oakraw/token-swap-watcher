@@ -69,7 +69,7 @@
             <v-btn
               text
               color="accent"
-              @click="openNewTab('https://bscscan.com/blocks')"
+              @click="isShowBloackDialog = true"
               >Looking for block number?</v-btn
             >
           </v-row>
@@ -158,18 +158,20 @@
     <div class="error-wrapper" v-if="error">
       <v-alert type="error"> {{ error }} </v-alert>
     </div>
+    <block-picker-dialog v-model="isShowBloackDialog" @error="showError"/>
   </v-app>
 </template>
 
 <script>
 import BigNumber from "bignumber.js";
 import VueJsonToCsv from "vue-json-to-csv";
-
+import BlockPickerDialog from '@/components/BlockPickerDialog.vue';
 export default {
   name: "App",
 
   components: {
     VueJsonToCsv,
+    BlockPickerDialog,
   },
 
   computed: {
@@ -216,6 +218,7 @@ export default {
     history: [],
     filter: null,
     excludedAddress: [],
+    isShowBloackDialog: false,
   }),
 
   created() {
